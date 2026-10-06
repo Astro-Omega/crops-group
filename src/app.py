@@ -18,6 +18,10 @@ st.caption("Perceptrón multicapa (TensorFlow) · entrenamiento 2021-2024 · pre
 
 # ------------------------------------------------------------------ 1) configuración
 with st.sidebar:
+    st.header("🎨 Apariencia")
+    tema = st.selectbox("Selecciona el tema", ["Modo Oscuro", "Modo Claro"], index=0)
+    
+    st.divider()
     st.header("⚙️ Configuración del modelo")
     layers_txt = st.text_input("Neuronas por capa oculta", "128,64,32", help="Separadas por coma")
     activation = st.selectbox("Activación", ["relu", "elu", "selu", "tanh"])
@@ -45,6 +49,99 @@ cfg = PredictionConfig(hidden_layers=hidden, activation=activation, dropout=drop
                         learning_rate=lr, epochs=int(epochs), batch_size=int(batch),
                         patience=int(patience), val_strategy=val_strategy, refit_full=refit,
                         log_target=log_target, seed=int(seed))
+
+# ------------------------------------------------------------------ Temas y Colores
+if tema == "Modo Oscuro":
+    bg_color = "#0E1117"
+    text_color = "#FFFFFF"
+    accent_color = "#4CAF50"
+    plotly_template = "plotly_dark"
+else:
+    bg_color = "#FFFFFF"
+    text_color = "#000000"
+    accent_color = "#2E7D32"
+    plotly_template = "plotly_white"
+
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background-color: {bg_color} !important;
+        color: {text_color} !important;
+    }}
+    [data-testid="stSidebar"] {{
+        background-color: {bg_color} !important;
+    }}
+    h1, h2, h3, p, span, label, div {{
+        color: {text_color} !important;
+    }}
+    /* SOLUCIÓN DEFINITIVA: Forzar blanco a TODO dentro del cargador */
+    [data-testid="stFileUploadDropzone"] * {{
+        color: white !important;
+    }}
+    /* Texto "200MB per file • CSV" siempre en blanco */
+    [data-testid="stFileUploadDropzone"] small,
+    [data-testid="stFileUploadDropzone"] span,
+    [data-testid="stFileUploadDropzone"] p {{
+        color: white !important;
+    }}
+    /* Dropzone igual de alto que el botón Upload */
+    [data-testid="stFileUploadDropzone"],
+    section[data-testid="stFileUploadDropzone"] {{
+        background-color: #1e2130 !important;
+        border: 2px dashed {accent_color} !important;
+        min-height: 0 !important;
+        height: 42px !important;
+        padding: 0 12px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 10px !important;
+        overflow: hidden !important;
+    }}
+    /* El contenedor de instrucciones en fila */
+    [data-testid="stFileUploaderDropzoneInstructions"] {{
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }}
+    [data-testid="stFileUploaderDropzoneInstructions"] *,
+    [data-testid="stFileUploaderDropzoneInstructions"] span,
+    [data-testid="stFileUploaderDropzoneInstructions"] small {{
+        color: white !important;
+        margin: 0 !important;
+        line-height: 1 !important;
+    }}
+    /* Estilo para el botón de Upload */
+    button[kind="primary"], button[data-testid="stBaseButton-secondary"] {{
+        background-color: {accent_color} !important;
+        color: white !important;
+        border: none !important;
+    }}
+    div[data-testid="stFileUploadDropzone"] button {{
+        background-color: {accent_color} !important;
+        color: white !important;
+        border-radius: 5px !important;
+    }}
+    /* Opciones del dropdown/selectbox — texto siempre en blanco */
+    [data-testid="stSelectbox"] li,
+    [data-testid="stSelectbox"] li span,
+    div[data-baseweb="select"] li,
+    div[data-baseweb="select"] li span,
+    div[data-baseweb="menu"] li,
+    div[data-baseweb="menu"] li span,
+    div[data-baseweb="popover"] li,
+    div[data-baseweb="popover"] li span,
+    ul[role="listbox"] li,
+    ul[role="listbox"] li span,
+    [role="option"],
+    [role="option"] span {{
+        color: white !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
 tab_data, tab_run, tab_res, tab_dash = st.tabs(
     ["1 · Datos", "2 · Pipeline", "3 · Resultados (CSV)", "4 · Dashboard"])
@@ -119,8 +216,8 @@ with tab_run:
         fig.add_scatter(y=h["loss"], name="Entrenamiento")
         fig.add_scatter(y=h["val_loss"], name="Validación")
         fig.update_layout(title="Curva de aprendizaje (MSE)", xaxis_title="Época", yaxis_title="Loss",
-                            height=350, margin=dict(t=50, b=10))
-        st.plotly_chart(fig, width="stretch")
+                            height=350, margin=dict(t=50, b=10), template=plotly_template)
+        st.plotly_chart(fig, use_container_width=True)
 
 # ------------------------------------------------------------------ resultados
 # en este apartado se pueden obtener los resultados de la predicción
@@ -130,12 +227,33 @@ with tab_res:
         st.info("Ejecuta el pipeline para generar el CSV de predicciones.")
     else:
         out = res["predictions"]
-        st.dataframe(out, width="stretch", height=420)
+        st.dataframe(out, use_container_width=True, height=420)
         st.download_button("⬇️ Descargar predicciones (CSV)",
                             out.to_csv(index=False).encode("utf-8-sig"),
                             "predicciones_2025.csv", "text/csv")
         if st.button("💾 Guardar también en output/"):
             st.success(f"Guardado en {save_predictions(out)}")
+
+        if "Rendimiento_Real" in out.columns:
+            st.subheader("Diagnóstico de error por municipio y subregión")
+            error_table = (
+                out.groupby(["Subregion", "Municipio"], as_index=False)
+                .agg(
+                    Registros=("Rendimiento_Real", "count"),
+                    MAE_t_ha=("Error_Abs", "mean"),
+                    Error_pct_promedio=("Error_Pct", "mean"),
+                    Rendimiento_real_promedio=("Rendimiento_Real", "mean"),
+                    Rendimiento_predicho_promedio=("Rendimiento_Predicho", "mean"),
+                )
+                .sort_values(["MAE_t_ha", "Error_pct_promedio"], ascending=[False, False])
+                .reset_index(drop=True)
+            )
+            error_table["MAE_t_ha"] = error_table["MAE_t_ha"].round(3)
+            error_table["Error_pct_promedio"] = error_table["Error_pct_promedio"].round(2)
+            error_table["Rendimiento_real_promedio"] = error_table["Rendimiento_real_promedio"].round(3)
+            error_table["Rendimiento_predicho_promedio"] = error_table["Rendimiento_predicho_promedio"].round(3)
+            st.dataframe(error_table, width="stretch", height=260)
+
         st.caption("Este mismo DataFrame alimenta el dashboard. Producción estimada = rendimiento "
                     "predicho × área cosechada (la del CSV si existe; si no, sembrada × razón histórica del cultivo).")
 
@@ -169,69 +287,112 @@ with tab_dash:
         d = df[df["Subregion"].isin(subs) & df["Cultivo"].isin(crops)]
         if d.empty:
             st.warning("Sin datos con esos filtros.")
-            st.stop()
 
-        k = st.columns(4)
-        k[0].metric("Producción estimada (t)", f"{d['Produccion_Estimada_t'].sum():,.0f}")
-        k[1].metric("Área sembrada (ha)", f"{d['Area_Sembrada'].sum():,.0f}")
-        k[2].metric("Rendimiento ponderado (t/ha)", f"{wyield(d):.2f}")
-        k[3].metric("Registros", f"{len(d):,}")
+        else:
+            # --- Análisis de Productividad Relativa ---
+            # Calculado DESPUÉS de los filtros para que respete tanto Subregión como Cultivo
+            sub_avg = d.groupby("Subregion")["Rendimiento_Predicho"].mean().to_dict()
+            mun_avg = d.groupby(["Subregion", "Municipio"])["Rendimiento_Predicho"].mean().reset_index()
+            mun_avg["Rendimiento_Subregion"] = mun_avg["Subregion"].map(sub_avg)
+            # Fórmula: (rendimiento_municipio / rendimiento_subregion) * 100
+            # np.where protege contra división por cero si la subregión tiene rendimiento 0
+            mun_avg["Eficiencia_Pct"] = np.where(
+                mun_avg["Rendimiento_Subregion"] > 0,
+                (mun_avg["Rendimiento_Predicho"] / mun_avg["Rendimiento_Subregion"]) * 100,
+                np.nan
+            )
 
-        a, b = st.columns(2)
-        prod_crop = d.groupby("Cultivo", as_index=False)["Produccion_Estimada_t"].sum().sort_values("Produccion_Estimada_t")
-        a.plotly_chart(px.bar(prod_crop, x="Produccion_Estimada_t", y="Cultivo", orientation="h",
-                                title="Producción estimada por cultivo (t)"), width="stretch")
-        prod_sub = d.groupby("Subregion", as_index=False)["Produccion_Estimada_t"].sum()
-        b.plotly_chart(px.pie(prod_sub, values="Produccion_Estimada_t", names="Subregion", hole=0.35,
-                                title="Participación subregional en la producción"), width="stretch")
+            k = st.columns(4)
+            k[0].metric("Producción estimada (t)", f"{d['Produccion_Estimada_t'].sum():,.0f}")
+            k[1].metric("Área sembrada (ha)", f"{d['Area_Sembrada'].sum():,.0f}")
+            k[2].metric("Rendimiento ponderado (t/ha)", f"{wyield(d):.2f}")
+            k[3].metric("Registros", f"{len(d):,}")
 
-        a, b = st.columns(2)
-        a.plotly_chart(px.histogram(d, x="Rendimiento_Predicho", color="Subregion", nbins=30,
-                                    title="Distribución del rendimiento predicho (t/ha)"), width="stretch")
-        y_sub = d.groupby("Subregion").apply(wyield, include_groups=False).rename("Rendimiento").reset_index()
-        b.plotly_chart(px.bar(y_sub.sort_values("Rendimiento"), x="Subregion", y="Rendimiento",
-                                title="Productividad por subregión (t/ha ponderado por área)"), width="stretch")
+            # --- Nuevas Visualizaciones de Productividad ---
+            st.subheader("📊 Análisis de Productividad Relativa")
 
-        a, b = st.columns(2)
-        a.plotly_chart(px.box(d, x="Cultivo", y="Rendimiento_Predicho", color="Cultivo",
-                                title="Rendimiento predicho por cultivo").update_layout(showlegend=False),
-                        width="stretch")
-        top = d.groupby("Municipio", as_index=False)["Produccion_Estimada_t"].sum().nlargest(10, "Produccion_Estimada_t")
-        b.plotly_chart(px.bar(top.sort_values("Produccion_Estimada_t"), x="Produccion_Estimada_t", y="Municipio",
-                                orientation="h", title="Top 10 municipios por producción (t)"), width="stretch")
+            col_eff1, col_eff2 = st.columns([1, 2])
+            with col_eff1:
+                st.write("### Eficiencia Municipal")
+                st.caption("Comparación del rendimiento del municipio vs el promedio de su subregión.")
+                st.dataframe(
+                    mun_avg[["Municipio", "Subregion", "Eficiencia_Pct"]].sort_values("Eficiencia_Pct", ascending=False),
+                    hide_index=True, use_container_width=True
+                )
 
-        st.plotly_chart(px.treemap(d, path=[px.Constant("Sucre"), "Subregion", "Municipio", "Cultivo"],
-                                    values="Produccion_Estimada_t", title="Producción: subregión → municipio → cultivo"),
-                        width="stretch")
+            with col_eff2:
+                fig_eff = px.bar(
+                    mun_avg, x="Municipio", y="Eficiencia_Pct", color="Subregion",
+                    title="Eficiencia Municipal (%)",
+                    labels={"Eficiencia_Pct": "Eficiencia (%)", "Municipio": "Municipio"},
+                    template=plotly_template
+                )
+                fig_eff.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="Promedio Subregión")
+                st.plotly_chart(fig_eff, use_container_width=True)
 
-        pivot = d.pivot_table(index="Municipio", columns="Cultivo", values="Rendimiento_Predicho", aggfunc="mean")
-        fig, ax = plt.subplots(figsize=(max(6, 0.9 * pivot.shape[1] + 3), max(4, 0.35 * pivot.shape[0] + 1)))
-        sns.heatmap(pivot, cmap="YlGn", annot=pivot.shape[0] * pivot.shape[1] <= 200, fmt=".1f",
-                    linewidths=0.4, cbar_kws={"label": "t/ha"}, ax=ax)
-        ax.set_title("Rendimiento predicho promedio: municipio × cultivo")
-        st.pyplot(fig)
+            st.divider()
 
-        # histórico real vs. predicción (usa el histórico de la sesión, si existe)
-        res = st.session_state.get("result")
-        if res is not None:
-            hist = res["predictor"].train_df
-            hist = hist[hist["Cultivo"].isin(crops)]
-            t1 = hist.groupby(["Anio", "Cultivo"], as_index=False)["Rendimiento"].mean().assign(Fuente="Histórico real")
-            t2 = (d.groupby(["Anio", "Cultivo"], as_index=False)["Rendimiento_Predicho"].mean()
-                    .rename(columns={"Rendimiento_Predicho": "Rendimiento"}).assign(Fuente="Predicción"))
-            trend = pd.concat([t1, t2])
-            st.plotly_chart(px.line(trend, x="Anio", y="Rendimiento", color="Cultivo", line_dash="Fuente",
-                                    markers=True, title="Rendimiento promedio por año: histórico vs. predicción"
-                                    ).update_xaxes(dtick=1), width="stretch")
-
-        if "Rendimiento_Real" in d.columns and d["Rendimiento_Real"].notna().any():
-            st.subheader("Evaluación contra valores reales de 2025")
             a, b = st.columns(2)
-            lim = float(max(d["Rendimiento_Real"].max(), d["Rendimiento_Predicho"].max()))
-            sc = px.scatter(d, x="Rendimiento_Real", y="Rendimiento_Predicho", color="Cultivo",
-                            hover_data=["Municipio"], title="Real vs. predicho (t/ha)")
-            sc.add_shape(type="line", x0=0, y0=0, x1=lim, y1=lim, line=dict(dash="dash", color="gray"))
-            a.plotly_chart(sc, width="stretch")
-            err = d.assign(Error=d["Rendimiento_Predicho"] - d["Rendimiento_Real"])
-            b.plotly_chart(px.histogram(err, x="Error", nbins=40, title="Distribución del error (predicho − real)"),
-                            width="stretch") 
+            prod_crop = d.groupby("Cultivo", as_index=False)["Produccion_Estimada_t"].sum().sort_values("Produccion_Estimada_t")
+            a.plotly_chart(px.bar(prod_crop, x="Produccion_Estimada_t", y="Cultivo", orientation="h",
+                                    title="Producción estimada por cultivo (t)", template=plotly_template), use_container_width=True)
+            prod_sub = d.groupby("Subregion", as_index=False)["Produccion_Estimada_t"].sum()
+            b.plotly_chart(px.pie(prod_sub, values="Produccion_Estimada_t", names="Subregion", hole=0.35,
+                                    title="Participación subregional en la producción", template=plotly_template), use_container_width=True)
+
+            a, b = st.columns(2)
+            a.plotly_chart(px.histogram(d, x="Rendimiento_Predicho", color="Subregion", nbins=30,
+                                        title="Distribución del rendimiento predicho (t/ha)", template=plotly_template), use_container_width=True)
+            y_sub = d.groupby("Subregion").apply(wyield, include_groups=False).rename("Rendimiento").reset_index()
+            b.plotly_chart(px.bar(y_sub.sort_values("Rendimiento"), x="Subregion", y="Rendimiento",
+                                    title="Productividad por subregión (t/ha ponderado por área)", template=plotly_template), use_container_width=True)
+
+            a, b = st.columns(2)
+            a.plotly_chart(px.box(d, x="Cultivo", y="Rendimiento_Predicho", color="Cultivo",
+                                    title="Rendimiento predicho por cultivo", template=plotly_template).update_layout(showlegend=False),
+                            use_container_width=True)
+            top = d.groupby("Municipio", as_index=False)["Produccion_Estimada_t"].sum().nlargest(10, "Produccion_Estimada_t")
+            b.plotly_chart(px.bar(top.sort_values("Produccion_Estimada_t"), x="Produccion_Estimada_t", y="Municipio",
+                                    orientation="h", title="Top 10 municipios por producción (t)", template=plotly_template), use_container_width=True)
+
+            st.plotly_chart(px.treemap(d, path=[px.Constant("Sucre"), "Subregion", "Municipio", "Cultivo"],
+                                        values="Produccion_Estimada_t",
+                                        title="Producción: subregión → municipio → cultivo",
+                                        template=plotly_template),
+                            use_container_width=True)
+
+            pivot = d.pivot_table(index="Municipio", columns="Cultivo", values="Rendimiento_Predicho", aggfunc="mean")
+            fig, ax = plt.subplots(figsize=(max(6, 0.9 * pivot.shape[1] + 3), max(4, 0.35 * pivot.shape[0] + 1)))
+            sns.heatmap(pivot, cmap="YlGn", annot=pivot.shape[0] * pivot.shape[1] <= 200, fmt=".1f",
+                        linewidths=0.4, cbar_kws={"label": "t/ha"}, ax=ax)
+            ax.set_title("Rendimiento predicho promedio: municipio × cultivo")
+            st.pyplot(fig)
+
+            # histórico real vs. predicción (usa el histórico de la sesión, si existe)
+            res = st.session_state.get("result")
+            if res is not None:
+                hist = res["predictor"].train_df
+                hist = hist[hist["Cultivo"].isin(crops)]
+                t1 = hist.groupby(["Anio", "Cultivo"], as_index=False)["Rendimiento"].mean().assign(Fuente="Histórico real")
+                t2 = (d.groupby(["Anio", "Cultivo"], as_index=False)["Rendimiento_Predicho"].mean()
+                        .rename(columns={"Rendimiento_Predicho": "Rendimiento"}).assign(Fuente="Predicción"))
+                trend = pd.concat([t1, t2])
+                st.plotly_chart(px.line(trend, x="Anio", y="Rendimiento", color="Cultivo", line_dash="Fuente",
+                                        markers=True, title="Rendimiento promedio por año: histórico vs. predicción",
+                                        template=plotly_template
+                                        ).update_xaxes(dtick=1), use_container_width=True)
+
+            if "Rendimiento_Real" in d.columns and d["Rendimiento_Real"].notna().any():
+                st.subheader("Evaluación contra valores reales de 2025")
+                a, b = st.columns(2)
+                lim = float(max(d["Rendimiento_Real"].max(), d["Rendimiento_Predicho"].max()))
+                sc = px.scatter(d, x="Rendimiento_Real", y="Rendimiento_Predicho", color="Cultivo",
+                                hover_data=["Municipio"], title="Real vs. predicho (t/ha)",
+                                template=plotly_template)
+                sc.add_shape(type="line", x0=0, y0=0, x1=lim, y1=lim, line=dict(dash="dash", color="gray"))
+                a.plotly_chart(sc, use_container_width=True)
+                err = d.assign(Error=d["Rendimiento_Predicho"] - d["Rendimiento_Real"])
+                b.plotly_chart(px.histogram(err, x="Error", nbins=40,
+                                            title="Distribución del error (predicho − real)",
+                                            template=plotly_template),
+                                use_container_width=True)
