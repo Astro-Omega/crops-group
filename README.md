@@ -35,3 +35,17 @@ Si descargaste las dependencias en el lugar incorrecto o por casualidades del ti
 ```PowerShell
 pip uninstall -r requirements.txt -y
 ```
+----
+## Ejecución de Crops-group
+
+La ejecución de este algoritmo es propio de la consola shell ``VScode``, por lo tanto se requiere de escribir el siguiente comando
+
+INPORTANTE: Es necesario que se haya realizado los anteriores pasos para evitar problemas con el compilador o ejecución de la misma aplicación
+
+```PowerShell
+streamlit run app.py
+```
+
+>PD: en los comentario del archivo ``app.py`` se encuentra 
+nuevamente la indicación del comando anterior.
+Aparte de esos se tiene que aceptar todos los permisos ya que se esta empleando en una API de terceros que te redirige a un servicio en la web
